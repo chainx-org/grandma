@@ -25,14 +25,23 @@ impl SessionKeys for PolkadotSessionKeys {
 }
 
 #[derive(Debug, Decode)]
-pub struct DarwiniaSessionKeys {
+pub struct ChainXSessionKeys {
 	pub babe: AccountId,
 	pub grandpa: AccountId,
 	pub im_online: AccountId,
 	pub authority_discovery: AccountId,
 }
-impl SessionKeys for DarwiniaSessionKeys {
+impl SessionKeys for ChainXSessionKeys {
 	fn grandpa(&self) -> &AccountId {
 		&self.grandpa
 	}
+}
+
+
+#[derive(Debug, Decode)]
+pub struct ChainXValidator {
+	pub registered_at: u32,
+	pub is_chilled: bool,
+	pub last_chilled: Option<u32>,
+	pub referral_id: Vec<u8>,
 }

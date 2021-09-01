@@ -63,7 +63,7 @@ impl Display for Hash {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Decode)]
-pub struct AccountId([u8; 32]);
+pub struct AccountId(pub(crate) [u8; 32]);
 impl Debug for AccountId {
 	fn fmt(&self, f: &mut Formatter) -> FmtResult {
 		unsafe {

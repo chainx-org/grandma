@@ -71,9 +71,9 @@ fn main() {
 	println!("{} {}", "Connected to".green(), spec_name.green());
 
 	if app_args.subcommand_matches("round-state").is_some() {
-		fetch_round_state::<_, DarwiniaSessionKeys>(&mut ws);
+		fetch_round_state::<_, ChainXSessionKeys>(&mut ws);
 	} else {
-		watch::<_, DarwiniaSessionKeys>(&mut ws, log);
+		watch::<_, ChainXSessionKeys>(&mut ws, log);
 	}
 }
 
@@ -222,8 +222,12 @@ where
 	))
 	.unwrap()
 	.into_iter()
-	.map(|(stash, session_keys)| (session_keys.grandpa().to_owned(), stash))
-	.collect::<HashMap<AccountId, AccountId>>();
+	.map(|(stash, session_keys)| {
+		let stash_name = query_validator_name(ws, stash.clone());
+
+		(session_keys.grandpa().to_owned(), (stash, stash_name))
+	})
+	.collect::<HashMap<AccountId, (AccountId, String)>>();
 
 	ws.write_message(Message::from(
 		serde_json::to_vec(&grandpa::round_state()).unwrap(),
@@ -272,10 +276,11 @@ where
 	println!("{}{:>15}", indent1, "missing:".magenta());
 	for missing_prevote in current_prevotes_missing {
 		println!(
-			"{}{} {}",
+			"{}{} {} {}",
 			indent2,
 			"stash:".magenta(),
-			queued_keys[&missing_prevote].to_string().cyan()
+			queued_keys[&missing_prevote].0.to_string().cyan(),
+			queued_keys[&missing_prevote].1.yellow()
 		);
 	}
 
@@ -290,10 +295,11 @@ where
 	for missing_precommit in current_precommits_missing {
 		if let Some(queued_key) = queued_keys.get(&missing_precommit) {
 			println!(
-				"{}{} {}",
+				"{}{} {} {}",
 				indent2,
 				"stash:".magenta(),
-				queued_key.to_string().cyan()
+				queued_key.0.to_string().cyan(),
+				queued_key.1.yellow()
 			);
 		} else {
 			println!(
@@ -304,6 +310,36 @@ where
 			);
 		}
 	}
+}
+
+fn query_validator_name<S>(ws: &mut WebSocket<S>, validator: AccountId) -> String
+where
+	S: Read + Write,
+{
+	ws.write_message(Message::from(
+		serde_json::to_vec(&state::get_storage(
+			&array_bytes::bytes2hex("0x", substorager::storage_map_key(
+				b"XStaking",
+				b"Validators",
+				(
+					&substorager::StorageHasher::Twox64Concat,
+					&validator.0
+				)
+			)),
+			<Option<BlockNumber>>::None,
+		))
+			.unwrap(),
+	))
+		.unwrap();
+	let value = serde_json::from_slice::<Value>(&ws.read_message().unwrap().into_data()).unwrap()
+		["result"]
+		.take();
+
+	<ChainXValidator>::decode(&mut &*array_bytes::hex2bytes_unchecked(
+		value.as_str().unwrap(),
+	))
+		.and_then(|profile| String::from_utf8(profile.referral_id).map_err(|_| "Format ChainX validator name".into()))
+		.unwrap_or_default()
 }
 
 fn subscribe_justifications<S>(ws: &mut WebSocket<S>)
